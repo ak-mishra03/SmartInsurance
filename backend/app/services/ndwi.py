@@ -10,7 +10,7 @@ load_dotenv()
 EE = os.getenv("EE")
 
 if not EE:
-    raise RuntimeError("EE project id not found in environment variables in environment variables")
+    raise RuntimeError("EE project id not found in environment variables")
 
 # Authenticate and Initialize the google earth engine
 def init_ee():
@@ -90,12 +90,45 @@ def compute_flood_stats(
     if flooded_m2 is None or total_m2 is None:
         raise ValueError("Area calculation failed")
 
-    flood_percent = (flooded_m2/total_m2)
-
+    flood_percent = (flooded_m2/total_m2)*100
+    severity = classify_severity(flooded_m2, flood_percent)
+    recommendation = get_recommendation(severity)
     return {
             "flooded_area_m2": flooded_m2,
-            "flooded_area_percent": flood_percent
+            "flooded_area_percent": flood_percent,
+            "severity": severity,
+            "recommendation": recommendation
             }
+
+#computes the severity based on the flood mask 
+def classify_severity(flooded_m2: float, flood_percent: float):
+    """
+        Version 1 severity model.
+
+        Severity is estimated from the percentage of newly inundated area detected within the AOI.
+
+        Thresholds are heuristic and intended for claim triage, not hydrological flood-depth estimation.
+    """
+    if flooded_m2 < 100_000:
+        return "NONE"
+    elif flood_percent < 2:
+        return "MINOR"
+    elif flood_percent < 10:
+        return "MODERATE"
+    elif flood_percent < 25:
+        return "MAJOR"
+    else:
+        return "SEVERE"
+
+def get_recommendation(severity: str):
+    """May later exclude permanent water bodies using JRC Global Surface Water dataset."""
+    if severity == "NONE":
+        return "REJECT CLAIM"
+    elif severity == "MINOR":
+        return "MANUAL REVIEW"
+    else:
+        return "AUTO APPROVE"
+
 
 #computes the ndwi values for a given location in a given time range
 def compute_ndwi_stats(lat:float, lon:float, start_date:str,end_date:str):
@@ -125,14 +158,19 @@ def compute_ndwi_stats(lat:float, lon:float, start_date:str,end_date:str):
             .rename("ndwi"))  #calculating ndwi
 
     stats = ndwi.reduceRegion(
-            reducer = ee.Reducer.mean(),
+            reducer = ee.Reducer.minMax(),      #temp change
             geometry = point,
             scale = 10,
             maxPixels = 1e9
             )
-    mean_ndwi = stats.get("ndwi").getInfo()
+    #mean_ndwi = stats.get("ndwi").getInfo()
+    min_ndwi = stats.get("ndwi_min").getInfo()
+    max_ndwi = stats.get("ndwi_max").getInfo()
+
     return {
-            "mean_ndwi": float(mean_ndwi)
+            #"mean_ndwi": float(mean_ndwi)
+            "min_ndwi": min_ndwi,
+            "max_ndwi": max_ndwi
             }
     
 
