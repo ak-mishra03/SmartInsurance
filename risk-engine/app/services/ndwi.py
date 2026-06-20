@@ -56,12 +56,12 @@ def compute_flood_stats(
     init_ee()
 
     #area of intrest = 5KM around the given coordinate
-    aoi = ee.Geometry.Point([lon,lat]).buffer(5000)     
+    aoi = ee.Geometry.Point([lon,lat]).buffer(3000)     
 
     pre_ndwi = get_ndwi_image(aoi,pre_start,pre_end)
     post_ndwi = get_ndwi_image(aoi,post_start,post_end)
     
-    water_threshold = 0.0
+    water_threshold = 0.2
 
     pre_water = pre_ndwi.gt(water_threshold)
     post_water = post_ndwi.gt(water_threshold)
@@ -109,7 +109,7 @@ def classify_severity(flooded_m2: float, flood_percent: float):
 
         Thresholds are heuristic and intended for claim triage, not hydrological flood-depth estimation.
     """
-    if flooded_m2 < 100_000:
+    if flood_percent < 1:
         return "NONE"
     elif flood_percent < 2:
         return "MINOR"

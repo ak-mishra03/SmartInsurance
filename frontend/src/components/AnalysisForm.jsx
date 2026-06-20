@@ -1,19 +1,54 @@
+//frontend/src/components/AnalysisForm.jsx
+
 import { useState } from "react";
 
-export default function AnalysisForm({ setResult }) {
-  const [lat, setLat] = useState("");
-  const [lon, setLon] = useState("");
+export default function AnalysisForm({
+  lat,
+  setLat,
 
-  const [preStart, setPreStart] = useState("");
-  const [preEnd, setPreEnd] = useState("");
+  lon,
+  setLon,
 
-  const [postStart, setPostStart] = useState("");
-  const [postEnd, setPostEnd] = useState("");
+  preStart,
+  setPreStart,
 
-  const [loading, setLoading] = useState(false);
+  preEnd,
+  setPreEnd,
+
+  postStart,
+  setPostStart,
+
+  postEnd,
+  setPostEnd,
+
+  setResult,
+  setLocation,
+  
+  loading,
+  setLoading,}) {
+
   const [error, setError] = useState("");
 
   const analyzeFlood = async () => {
+    if (!lat || !lon) {
+      setError("Latitude and Longitude are required");
+      return;
+    }
+
+    if (
+      !preStart ||
+      !preEnd ||
+      !postStart ||
+      !postEnd
+    ) {
+      setError("All dates are required");
+      return;
+    }
+    setLocation({
+      lat:Number(lat),
+      lon:Number(lon),
+    });
+    setResult(null);
     setLoading(true);
     setError("");
 
@@ -109,17 +144,40 @@ export default function AnalysisForm({ setResult }) {
           disabled={loading}
           className="
             w-full
-            bg-blue-900
-            text-white
             py-3
             rounded-xl
+            text-white
+            font-medium
+            transition
+
+            bg-blue-900
             hover:bg-blue-800
-            disabled:bg-gray-400
+
+            disabled:bg-slate-400
+            disabled:cursor-not-allowed
+            disabled:hover:bg-slate-400
           "
         >
-          {loading ? "Analyzing..." : "Analyze Flood"}
-        </button>
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
 
+              <span
+                className="
+                  w-4 h-4
+                  border-2 border-white
+                  border-t-transparent
+                  rounded-full
+                  animate-spin
+                "
+              />
+
+              Analyzing...
+
+            </span>
+          ) : (
+            "Analyze Flood"
+          )}
+        </button>
         {error && (
           <div className="text-red-600 text-sm">
             {error}
