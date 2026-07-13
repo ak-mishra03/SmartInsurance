@@ -65,6 +65,7 @@ INSTALLED_APPS = [
 
 
     'django.contrib.gis',
+    'django_filters',
 
 
     'rest_framework',
