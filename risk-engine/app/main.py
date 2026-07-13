@@ -3,6 +3,7 @@ from app.api.flood import router as flood_router
 import os 
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.earth_engine import init_ee
 
 load_dotenv()
 
@@ -23,5 +24,8 @@ app.add_middleware(
         allow_methods=["*"],
         allow_headers=["*"],
         )
-
 app.include_router(flood_router)
+
+@app.on_event("startup")
+def startup():
+    init_ee()

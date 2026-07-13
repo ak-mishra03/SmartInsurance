@@ -1,190 +1,260 @@
-//frontend/src/components/AnalysisForm.jsx
-
 import { useState } from "react";
+import api from "../lib/api";
 
 export default function AnalysisForm({
-  lat,
-  setLat,
 
-  lon,
-  setLon,
-
-  preStart,
-  setPreStart,
-
-  preEnd,
-  setPreEnd,
-
-  postStart,
-  setPostStart,
-
-  postEnd,
-  setPostEnd,
+  property,
 
   setResult,
+
   setLocation,
-  
+
   loading,
-  setLoading,}) {
+
+  setLoading,
+
+  onAssessmentComplete,
+
+}) {
 
   const [error, setError] = useState("");
 
-  const analyzeFlood = async () => {
-    if (!lat || !lon) {
-      setError("Latitude and Longitude are required");
-      return;
-    }
+  const pollAssessment = async (assessmentId) => {
 
-    if (
-      !preStart ||
-      !preEnd ||
-      !postStart ||
-      !postEnd
-    ) {
-      setError("All dates are required");
-      return;
-    }
-    setLocation({
-      lat:Number(lat),
-      lon:Number(lon),
-    });
-    setResult(null);
-    setLoading(true);
-    setError("");
+    const interval = setInterval(async () => {
 
-    try {
-      const response = await fetch(
-        `http://localhost:8000/flood/flood-damage`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":"application/json",
-          },
-          body:JSON.stringify({
-            lat: Number(lat),
-            lon: Number(lon),
-            pre_start: preStart,
-            pre_end: preEnd,
-            post_start: postStart,
-            post_end: postEnd,
-          })
+      try {
+
+        const response =
+          await api.get(
+            `/assessments/${assessmentId}/`
+          );
+
+        const assessment = response.data;
+
+        if (
+          assessment.status === "PENDING" ||
+          assessment.status === "RUNNING"
+        ) {
+          return;
         }
-      );
 
-      if (!response.ok) {
-        throw new Error("Failed to analyze flood risk");
+        if (
+          assessment.status === "COMPLETED"
+        ) {
+
+          clearInterval(interval);
+
+          setResult(assessment);
+
+          if (onAssessmentComplete) {
+            onAssessmentComplete();
+          }
+
+          setLoading(false);
+
+          return;
+        }
+
+        if (
+          assessment.status === "FAILED"
+        ) {
+
+          clearInterval(interval);
+
+          setLoading(false);
+
+          setError("Assessment failed.");
+        }
+
       }
 
-      const data = await response.json();
+      catch (err) {
 
-      setResult(data.flood_stats);
-    } catch (err) {
-      setError(err.message);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+        clearInterval(interval);
+
+        console.error(err);
+
+        setLoading(false);
+
+        setError(
+          "Unable to fetch assessment."
+        );
+
+      }
+
+    }, 2000);
+
+    setTimeout(() => {
+
+      clearInterval(interval);
+
+    }, 180000);
+
   };
 
-  return (
-    <div className="bg-white rounded-3xl p-8 shadow">
 
-      <h2 className="text-2xl font-semibold mb-6">
-        Flood Analysis
-      </h2>
+  const analyzeFlood = async () => {
 
-      <div className="space-y-4">
+    if (!property) {
 
-        <input
-          type="number"
-          placeholder="Latitude"
-          value={lat}
-          onChange={(e) => setLat(e.target.value)}
-          className="w-full border rounded-xl p-3"
-        />
+      setError(
+        "No property selected."
+      );
 
-        <input
-          type="number"
-          placeholder="Longitude"
-          value={lon}
-          onChange={(e) => setLon(e.target.value)}
-          className="w-full border rounded-xl p-3"
-        />
+      return;
 
-        <input
-          type="date"
-          value={preStart}
-          onChange={(e) => setPreStart(e.target.value)}
-          className="w-full border rounded-xl p-3"
-        />
+    }
 
-        <input
-          type="date"
-          value={preEnd}
-          onChange={(e) => setPreEnd(e.target.value)}
-          className="w-full border rounded-xl p-3"
-        />
+    setError("");
 
-        <input
-          type="date"
-          value={postStart}
-          onChange={(e) => setPostStart(e.target.value)}
-          className="w-full border rounded-xl p-3"
-        />
+    setLoading(true);
 
-        <input
-          type="date"
-          value={postEnd}
-          onChange={(e) => setPostEnd(e.target.value)}
-          className="w-full border rounded-xl p-3"
-        />
+    setResult(null);
 
-        <button
-          onClick={analyzeFlood}
-          disabled={loading}
-          className="
-            w-full
-            py-3
-            rounded-xl
-            text-white
-            font-medium
-            transition
+    setLocation({
 
-            bg-blue-900
-            hover:bg-blue-800
+      lat: property.latitude,
 
-            disabled:bg-slate-400
-            disabled:cursor-not-allowed
-            disabled:hover:bg-slate-400
-          "
+      lon: property.longitude,
+
+    });
+
+    try {
+
+      const response =
+        await api.post(
+          "/assessments/",
+          {
+            property_id: property.id,
+          }
+        );
+
+      const assessment = response.data;
+
+      pollAssessment(
+        assessment.id
+      );
+    }
+
+    catch (err) {
+
+      console.error(err);
+
+      setLoading(false);
+
+      setError(
+        err.response?.data?.detail ||
+        "Assessment failed."
+      );
+
+    }
+
+  };
+
+    return (
+
+        <div
+            className="
+                bg-white
+                rounded-3xl
+                p-8
+                shadow
+            "
         >
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
 
-              <span
+            <h2
                 className="
-                  w-4 h-4
-                  border-2 border-white
-                  border-t-transparent
-                  rounded-full
-                  animate-spin
+                    text-2xl
+                    font-semibold
+                    mb-2
                 "
-              />
+            >
+                Flood Assessment
+            </h2>
 
-              Analyzing...
+            <p
+                className="
+                    text-gray-500
+                    mb-8
+                "
+            >
+                Satellite imagery will be selected
+                automatically.
+            </p>
 
-            </span>
-          ) : (
-            "Analyze Flood"
-          )}
-        </button>
-        {error && (
-          <div className="text-red-600 text-sm">
-            {error}
-          </div>
-        )}
+            {property && (
 
-      </div>
-    </div>
-  );
+                <div
+                    className="
+                        bg-slate-50
+                        rounded-xl
+                        p-4
+                        mb-6
+                    "
+                >
+
+                    <h3 className="font-semibold">
+                        {property.name}
+                    </h3>
+
+                    <p className="text-sm text-gray-500">
+                        {property.address}
+                    </p>
+
+                    <div className="mt-3 text-sm text-gray-600">
+
+                        <p>
+                            Latitude: {property.latitude.toFixed(5)}
+                        </p>
+
+                        <p>
+                            Longitude: {property.longitude.toFixed(5)}
+                        </p>
+
+                    </div>
+
+                </div>
+
+            )}
+
+            <button
+
+                onClick={analyzeFlood}
+
+                disabled={loading}
+
+                className="
+                    w-full
+                    bg-blue-900
+                    text-white
+                    py-3
+                    rounded-xl
+                    hover:bg-blue-800
+                    disabled:bg-slate-400
+                    disabled:cursor-not-allowed
+                "
+
+            >
+
+                {loading
+                    ? "Analyzing Satellite Imagery..."
+                    : "Analyze Property"}
+
+            </button>
+
+            {error && (
+
+                <div className="text-red-600 mt-4">
+
+                    {error}
+
+                </div>
+
+            )}
+
+        </div>
+
+    );
+
 }

@@ -1,0 +1,11 @@
+# risk-engine/app/core/constants.py
+
+MAX_CLOUD_COVER = 40
+
+NDWI_WATER_THRESHOLD = 0.20
+
+AOI_RADIUS_METERS = 3000
+
+SCALE = 10
+
+MAX_PIXELS = 1e9

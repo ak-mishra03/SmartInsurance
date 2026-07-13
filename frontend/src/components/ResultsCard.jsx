@@ -37,22 +37,56 @@ export default function ResultsCard({ result, loading }) {
   );
 }
 
-  if (!result) {
+if (!result) {
     return (
-      <div className="bg-white rounded-3xl p-8 shadow">
+        <div className="bg-white rounded-3xl p-8 shadow">
 
-        <h2 className="text-2xl font-semibold mb-6">
-          Assessment Results
-        </h2>
+            <h2 className="text-2xl font-semibold mb-6">
+                Assessment Results
+            </h2>
 
-        <div className="flex items-center justify-center h-[350px] text-gray-400">
-          Run an analysis to view results.
+            <div className="flex items-center justify-center h-[350px] text-gray-400">
+                Run an analysis to view results.
+            </div>
+
         </div>
-
-      </div>
     );
-  }
+}
 
+if (
+    result.status === "PENDING" ||
+    result.status === "RUNNING"
+) {
+    return (
+        <div className="bg-white rounded-3xl p-8 shadow">
+
+            <h2 className="text-2xl font-semibold mb-6">
+                Assessment Results
+            </h2>
+
+            <div className="flex flex-col items-center justify-center h-[350px]">
+
+                <div
+                    className="
+                        w-10
+                        h-10
+                        border-4
+                        border-blue-900
+                        border-t-transparent
+                        rounded-full
+                        animate-spin
+                    "
+                />
+
+                <p className="mt-6 text-gray-500">
+                    Analyzing satellite imagery...
+                </p>
+
+            </div>
+
+        </div>
+    );
+}
   const severityStyles = {
     NONE: "bg-green-100 text-green-700",
     MINOR: "bg-green-100 text-green-700",
@@ -81,7 +115,7 @@ export default function ResultsCard({ result, loading }) {
           </p>
 
           <p className="font-bold">
-            {result.flooded_area_percent.toFixed(2)}
+            {Number(result.flooded_area_percent ?? 0).toFixed(2)}
           </p>
         </div>
 
@@ -124,7 +158,7 @@ export default function ResultsCard({ result, loading }) {
           </p>
 
           <p className="text-4xl font-bold text-blue-950">
-            {result.flooded_area_percent.toFixed(2)}%
+            {Number(result.flooded_area_percent ?? 0).toFixed(2)}
           </p>
         </div>
 
@@ -134,7 +168,7 @@ export default function ResultsCard({ result, loading }) {
           </p>
 
           <p className="text-2xl font-semibold">
-            {Math.round(result.flooded_area_m2).toLocaleString()} m²
+            {Math.round(result.flooded_area_m2 ?? 0).toLocaleString()} m²
           </p>
         </div>
 
@@ -157,10 +191,9 @@ export default function ResultsCard({ result, loading }) {
             className={`
               text-lg font-bold
               ${
-                result.recommendation.includes("APPROVE")
-                  ? "text-green-700"
-                  : "text-red-700"
-              }
+              (result.recommendation ?? "").includes("APPROVE")
+                ? "text-green-700"
+                : "text-red-700"}
             `}
           >
             {result.recommendation}

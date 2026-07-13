@@ -6,8 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/FloodDashboard"
 import Home from "./pages/Home"
 import Products from "./pages/Products"
-import Signup from "./pages/Signup"
+import Register from "./pages/Register"
 import Login from "./pages/Login.jsx"
+import ProtectedRoute from "./routes/ProtectedRoute.jsx"
+
 
 export default function App() {
   return (
@@ -15,9 +17,29 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/products" element={<Products />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard/>
+          </ProtectedRoute>
+        }
+        />
+
+        <Route path="/claims" element={
+          <ProtectedRoute>
+            <Dashboard/>
+          </ProtectedRoute>
+        }
+        />
+
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Dashboard/>
+          </ProtectedRoute>
+        }
+        />
+
       </Routes>    
     </BrowserRouter>
   );
