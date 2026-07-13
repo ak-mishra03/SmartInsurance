@@ -1,37 +1,76 @@
 # assessments/models.py
 
 from django.db import models
-from claims.models import Claim
+
+from properties.models import Property
 
 
 class Assessment(models.Model):
 
-    class Severity(models.TextChoices):
-        NONE = "NONE", "None"
-        MINOR = "MINOR", "Minor"
-        MODERATE = "MODERATE", "Moderate"
-        MAJOR = "MAJOR", "Major"
-        SEVERE = "SEVERE", "Severe"
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        RUNNING = "RUNNING", "Running"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
 
-    claim = models.OneToOneField(
-        Claim,
+    class Recommendation(models.TextChoices):
+        AUTO_APPROVE = "AUTO_APPROVE", "Auto Approve"
+        MANUAL_REVIEW = "MANUAL_REVIEW", "Manual Review"
+        AUTO_REJECT = "AUTO_REJECT", "Auto Reject"
+
+    property = models.ForeignKey(
+        Property,
         on_delete=models.CASCADE,
-        related_name="assessment",
+        related_name="assessments",
     )
 
-    flood_percent = models.FloatField()
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
 
-    flooded_area_m2 = models.FloatField()
+    flooded_area_m2 = models.FloatField(
+        null=True,
+        blank=True,
+    )
+
+    flooded_area_percent = models.FloatField(
+        null=True,
+        blank=True,
+    )
 
     severity = models.CharField(
         max_length=20,
-        choices=Severity.choices,
+        blank=True,
     )
 
     recommendation = models.CharField(
-        max_length=50,
+        max_length=30,
+        choices=Recommendation.choices,
+        blank=True,
     )
 
-    analysis_radius_m = models.IntegerField()
+    raw_response = models.JSONField(
+        default=dict,
+        blank=True,
+    )
 
-    analyzed_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    def __str__(self):
+        return (
+            f"Assessment #{self.id} - "
+            f"{self.property.name}"
+        )

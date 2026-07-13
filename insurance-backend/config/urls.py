@@ -29,5 +29,8 @@ urlpatterns = [
         "api/",
          include("properties.urls")
          ),
+    path("api/assessments/",
+         include("assessments.urls"),
+         ),
 
 ]

@@ -1,177 +1,275 @@
-# SmartInsurance/backend/app/services/ndwi.py
+# SmartInsurance/risk-engine/app/services/ndwi.py
 
-from warnings import warn
-import ee 
-import os 
-from dotenv import load_dotenv
+import ee
 
-load_dotenv()
+from app.core.constants import (
+    AOI_RADIUS_METERS,
+    MAX_CLOUD_COVER,
+    MAX_PIXELS,
+    NDWI_WATER_THRESHOLD,
+    SCALE,
+)
 
-EE = os.getenv("EE")
 
-if not EE:
-    raise RuntimeError("EE project id not found in environment variables")
 
-# Authenticate and Initialize the google earth engine
-def init_ee():
-    try:
-        ee.Initialize(project= EE)
-    except Exception:
-        ee.Authenticate()
-        ee.Initialize(project = EE)
+# --------------------------------------------------------
+# Helper Functions
+# --------------------------------------------------------
 
-def get_ndwi_image(aoi: float, start_date: str, end_date: str):
-   collection = (
-           ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-           .filterBounds(aoi)
-           .filterDate(start_date,end_date)
-           .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE",60))
-           )
+def get_ndwi_image(
+    aoi,
+    start_date: str,
+    end_date: str,
+):
+    """
+    Returns the median NDWI image for the
+    specified area and date range.
+    """
 
-   count = collection.size().getInfo()
-   if count == 0:
-       raise ValueError("No sentinel-2 images found for ths date range")
+    collection = (
+        ee.ImageCollection(
+            "COPERNICUS/S2_SR_HARMONIZED"
+        )
+        .filterBounds(aoi)
+        .filterDate(
+            start_date,
+            end_date,
+        )
+        .filter(
+            ee.Filter.lt(
+                "CLOUDY_PIXEL_PERCENTAGE",
+                MAX_CLOUD_COVER,
+            )
+        )
+    )
 
-   image = collection.median()
-   green = image.select("B3")
-   nir = image.select("B8")
+    if collection.size().getInfo() == 0:
+        raise ValueError(
+            "No Sentinel-2 imagery found "
+            "for the selected period."
+        )
 
-   ndwi = (
-           green.subtract(nir)
-           .divide(green.add(nir))
-           .rename("ndwi")
-           )
+    image = collection.median()
 
-   return ndwi
+    green = image.select("B3")
 
+    nir = image.select("B8")
+
+    ndwi = (
+        green.subtract(nir)
+        .divide(
+            green.add(nir)
+        )
+        .rename("ndwi")
+    )
+
+    return ndwi
+
+
+def get_recommendation(
+    severity: str,
+):
+
+    if severity == "NONE":
+        return "AUTO_REJECT"
+
+    if severity == "MINOR":
+        return "MANUAL_REVIEW"
+
+    return "AUTO_APPROVE"
+
+
+def classify_severity(
+    flooded_area_m2: float,
+    flood_percent: float,
+):
+    """
+    Rule-based flood severity.
+
+    Later this can be replaced with
+    an ML model.
+    """
+
+    if flood_percent < 1:
+        return "NONE"
+
+    if flood_percent < 2:
+        return "MINOR"
+
+    if flood_percent < 10:
+        return "MODERATE"
+
+    if flood_percent < 25:
+        return "MAJOR"
+
+    return "SEVERE"
+
+
+# --------------------------------------------------------
+# Flood Analysis
+# --------------------------------------------------------
 
 def compute_flood_stats(
-        lat: float,
-        lon: float,
-        pre_start: str,
-        pre_end: str,
-        post_start: str,
-        post_end: str
-        ):
-    init_ee()
+    lat: float,
+    lon: float,
+    analysis_window: dict,
+):
+    """
+    Computes flood extent using
+    pre/post NDWI comparison.
+    """
 
-    #area of intrest = 5KM around the given coordinate
-    aoi = ee.Geometry.Point([lon,lat]).buffer(3000)     
+    aoi = (
+        ee.Geometry.Point(
+            [lon, lat]
+        )
+        .buffer(AOI_RADIUS_METERS)
+    )
 
-    pre_ndwi = get_ndwi_image(aoi,pre_start,pre_end)
-    post_ndwi = get_ndwi_image(aoi,post_start,post_end)
-    
-    water_threshold = 0.2
+    pre_ndwi = get_ndwi_image(
+        aoi,
+        analysis_window["pre_start"],
+        analysis_window["pre_end"],
+    )
 
-    pre_water = pre_ndwi.gt(water_threshold)
-    post_water = post_ndwi.gt(water_threshold)
+    post_ndwi = get_ndwi_image(
+        aoi,
+        analysis_window["post_start"],
+        analysis_window["post_end"],
+    )
 
-    flood_mask = post_water.And(pre_water.Not())
+    pre_water = pre_ndwi.gt(
+        NDWI_WATER_THRESHOLD
+    )
+
+    post_water = post_ndwi.gt(
+        NDWI_WATER_THRESHOLD
+    )
+
+    flood_mask = post_water.And(
+        pre_water.Not()
+    )
 
     pixel_area = ee.Image.pixelArea()
 
-    flooded_area = flood_mask.multiply(pixel_area).reduceRegion(
-            reducer = ee.Reducer.sum(),
-            geometry = aoi,
-            scale = 10,
-            maxPixels = 1e9
-            )
+    flooded_area = (
+        flood_mask
+        .multiply(pixel_area)
+        .reduceRegion(
+            reducer=ee.Reducer.sum(),
+            geometry=aoi,
+            scale=SCALE,
+            maxPixels=MAX_PIXELS,
+        )
+    )
 
-    total_area = pixel_area.reduceRegion(
-            reducer = ee.Reducer.sum(),
-            geometry = aoi,
-            scale = 10,
-            maxPixels = 1e9
-            )
+    total_area = (
+        pixel_area
+        .reduceRegion(
+            reducer=ee.Reducer.sum(),
+            geometry=aoi,
+            scale=SCALE,
+            maxPixels=MAX_PIXELS,
+        )
+    )
 
-    flooded_m2 = flooded_area.get("ndwi").getInfo()
-    total_m2 = total_area.get("area").getInfo()
+    flooded_area_m2 = (
+        flooded_area
+        .get("ndwi")
+        .getInfo()
+    )
 
-    if flooded_m2 is None or total_m2 is None:
-        raise ValueError("Area calculation failed")
+    total_area_m2 = (
+        total_area
+        .get("area")
+        .getInfo()
+    )
 
-    flood_percent = (flooded_m2/total_m2)*100
-    severity = classify_severity(flooded_m2, flood_percent)
-    recommendation = get_recommendation(severity)
+    if (
+        flooded_area_m2 is None
+        or total_area_m2 is None
+    ):
+        raise ValueError(
+            "Area calculation failed."
+        )
+
+    flood_percent = (
+        flooded_area_m2
+        / total_area_m2
+    ) * 100
+
+    severity = classify_severity(
+        flooded_area_m2,
+        flood_percent,
+    )
+
+    recommendation = get_recommendation(
+        severity,
+    )
+
     return {
-            "flooded_area_m2": flooded_m2,
-            "flooded_area_percent": flood_percent,
-            "severity": severity,
-            "recommendation": recommendation
-            }
 
-#computes the severity based on the flood mask 
-def classify_severity(flooded_m2: float, flood_percent: float):
+        "flooded_area_m2":
+            flooded_area_m2,
+
+        "flooded_area_percent":
+            flood_percent,
+
+        "severity":
+            severity,
+
+        "recommendation":
+            recommendation,
+
+    }
+
+
+# --------------------------------------------------------
+# NDWI Statistics
+# --------------------------------------------------------
+
+def compute_ndwi_stats(
+    lat: float,
+    lon: float,
+    start_date: str,
+    end_date: str,
+):
     """
-        Version 1 severity model.
-
-        Severity is estimated from the percentage of newly inundated area detected within the AOI.
-
-        Thresholds are heuristic and intended for claim triage, not hydrological flood-depth estimation.
+    Returns NDWI statistics
+    for a given location.
     """
-    if flood_percent < 1:
-        return "NONE"
-    elif flood_percent < 2:
-        return "MINOR"
-    elif flood_percent < 10:
-        return "MODERATE"
-    elif flood_percent < 25:
-        return "MAJOR"
-    else:
-        return "SEVERE"
-
-def get_recommendation(severity: str):
-    """May later exclude permanent water bodies using JRC Global Surface Water dataset."""
-    if severity == "NONE":
-        return "REJECT CLAIM"
-    elif severity == "MINOR":
-        return "MANUAL REVIEW"
-    else:
-        return "AUTO APPROVE"
 
 
-#computes the ndwi values for a given location in a given time range
-def compute_ndwi_stats(lat:float, lon:float, start_date:str,end_date:str):
-    init_ee()
+    aoi = (
+        ee.Geometry.Point(
+            [lon, lat]
+        )
+        .buffer(AOI_RADIUS_METERS)
+    )
 
-    point = ee.Geometry.Point([lon,lat]).buffer(5000)   #AOI (buffer in meters)
-
-    collection = (
-            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-            .filterBounds(point)
-            .filterDate(start_date,end_date)
-            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE",60))
-            )
-    count = collection.size().getInfo()
-    if count == 0:
-        raise ValueError("No sentinel-2 images found for the given location or time range")
-
-    image = collection.median()
-    
-    #selecting bands
-    green = image.select("B3")
-    nir = image.select("B8")
-
-    ndwi = (green
-            .subtract(nir)
-            .divide(green.add(nir))
-            .rename("ndwi"))  #calculating ndwi
+    ndwi = get_ndwi_image(
+        aoi,
+        start_date,
+        end_date,
+    )
 
     stats = ndwi.reduceRegion(
-            reducer = ee.Reducer.minMax(),      #temp change
-            geometry = point,
-            scale = 10,
-            maxPixels = 1e9
-            )
-    #mean_ndwi = stats.get("ndwi").getInfo()
-    min_ndwi = stats.get("ndwi_min").getInfo()
-    max_ndwi = stats.get("ndwi_max").getInfo()
+        reducer=ee.Reducer.minMax(),
+        geometry=aoi,
+        scale=SCALE,
+        maxPixels=MAX_PIXELS,
+    )
 
     return {
-            #"mean_ndwi": float(mean_ndwi)
-            "min_ndwi": min_ndwi,
-            "max_ndwi": max_ndwi
-            }
-    
 
-    
+        "min_ndwi":
+            stats.get(
+                "ndwi_min"
+            ).getInfo(),
+
+        "max_ndwi":
+            stats.get(
+                "ndwi_max"
+            ).getInfo(),
+
+    }
