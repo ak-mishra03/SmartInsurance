@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     'policies',
     'claims',
     'assessments',
+    'analytics',
 ]
 
 MIDDLEWARE = [

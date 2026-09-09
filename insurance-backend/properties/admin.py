@@ -1,5 +1,11 @@
-from django.contrib import admin
-from .models import Property
-# Register your models here.
+# properties/admin.py
 
-admin.site.register(Property)
+from django.contrib.gis import admin
+from .models import Property
+
+
+@admin.register(Property)
+class PropertyAdmin(admin.GISModelAdmin):
+    list_display = ("name", "property_type", "owner", "insured_value", "created_at")
+    list_filter = ("property_type", "created_at")
+    search_fields = ("name", "address", "owner__username", "owner__email")

@@ -11,6 +11,7 @@ import FloodMap from "../components/FloodMap";
 import AssessmentHistory from "../components/AssessmentHistory";
 
 import api from "../lib/api";
+import AnalyticsDashboard from "../components/analytics/AnalyticsDashboard";
 
 export default function Dashboard() {
 
@@ -254,8 +255,9 @@ const deleteProperty = async (id) => {
     return (
 
         <>
+            
             <Navbar />
-
+            <AnalyticsDashboard/>
             <section className="min-h-screen bg-slate-100 px-8 py-10">
 
                 <div className="max-w-screen-2xl mx-auto">
