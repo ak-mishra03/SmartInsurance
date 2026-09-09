@@ -1,14 +1,14 @@
 #SmartInsurance/risk-engine/app/api/flood.py
 
 from fastapi import APIRouter
-from app.services.ndwi import compute_ndwi_stats, compute_flood_stats
-from app.schemas.flood import FloodDamageRequest
-from app.utils.date_selector import choose_analysis_dates
+from app.services.flood_service import FloodService
+from app.services.ndwi import compute_ndwi_stats
+from app.schemas.flood import FloodDamageRequest, FloodDamageResponse, NDWIResponse
 
 router = APIRouter(prefix="/flood", tags=["Flood Detection"])
 
 
-@router.post("/ndwi")
+@router.post("/ndwi", response_model=NDWIResponse)
 def compute_ndwi(
         lat:float,
         lon:float,
@@ -24,33 +24,6 @@ def compute_ndwi(
             }
 
 
-@router.post("/flood-damage")
+@router.post("/flood-damage", response_model=FloodDamageResponse)
 def flood_damage(request: FloodDamageRequest):
-    analysis_window = choose_analysis_dates()
-    
-    stats = compute_flood_stats(
-
-        request.lat,
-
-        request.lon,
-
-        analysis_window,
-
-    )
-    print(analysis_window)
-
-    return {
-
-        "location": [
-
-            request.lat,
-
-            request.lon,
-
-        ],
-
-        "analysis_window": analysis_window,
-
-        "flood_stats": stats,
-
-    }           
+    return FloodService.analyze_flood_damage(request)

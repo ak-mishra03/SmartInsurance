@@ -5,6 +5,10 @@ from .models import Assessment
 
 
 class AssessmentSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Assessment model.
+    Validates that the specified property is owned by the requesting user.
+    """
 
     property_id = serializers.PrimaryKeyRelatedField(
         queryset=Property.objects.all(),
@@ -19,7 +23,6 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Assessment
-
         fields = (
             "id",
             "property_id",
@@ -33,7 +36,6 @@ class AssessmentSerializer(serializers.ModelSerializer):
             "updated_at",
             "completed_at",
         )
-
         read_only_fields = (
             "status",
             "flooded_area_m2",
@@ -45,13 +47,10 @@ class AssessmentSerializer(serializers.ModelSerializer):
             "completed_at",
         )
 
-    def validate_property(self, property_obj):
+    def validate_property(self, property_obj: Property) -> Property:
+        request = self.context.get("request")
 
-        request = self.context["request"]
-
-        if property_obj.owner != request.user:
-            raise serializers.ValidationError(
-                "You do not own this property."
-            )
+        if request and property_obj.owner != request.user:
+            raise serializers.ValidationError("You do not own this property.")
 
         return property_obj

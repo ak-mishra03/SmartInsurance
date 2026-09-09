@@ -8,19 +8,22 @@ from .serializers import PropertySerializer
 
 
 class PropertyViewSet(viewsets.ModelViewSet):
-    queryset = Property.objects.all()
-    serializer_class = PropertySerializer
+    """
+    API ViewSet for viewing and managing user properties.
+    Restricts access strictly to properties owned by the authenticated user.
+    """
 
-    permission_classes = [
-        IsAuthenticated,
-    ]
+    serializer_class = PropertySerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Property.objects.filter(
-            owner=self.request.user
-        )
+        """
+        Filters properties owned by the current authenticated user.
+        """
+        return Property.objects.filter(owner=self.request.user)
 
-    def perform_create(self, serializer):
-        serializer.save(
-            owner=self.request.user
-        )
+    def perform_create(self, serializer: PropertySerializer) -> None:
+        """
+        Passes authenticated user as property owner upon creation.
+        """
+        serializer.save(owner=self.request.user)
